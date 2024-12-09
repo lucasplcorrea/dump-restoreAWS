@@ -35,6 +35,17 @@ show_progress() {
     printf "\r[✔] Concluído!            \n"
 }
 
+# Exporta roles e usuários globais
+GLOBAL_DUMP_FILE="$DUMP_DIR/global_roles.sql"
+    echo "Exportando roles e usuários globais..."
+    pg_dumpall -h "$AWS_HOST" -p "$AWS_PORT" -U "$AWS_USER" --roles-only > "$GLOBAL_DUMP_FILE" 2>&1 &
+    show_progress $!
+    if [ $? -ne 0 ]; then
+        echo "[x] Erro ao exportar roles e usuários globais. Verifique o log acima."
+        exit 1
+    fi
+    echo "[✔] Roles e usuários globais exportados com sucesso!"
+
 # Processa cada banco da lista
 for DB in "${DATABASES[@]}"; do
     echo "==== Banco de Dados: $DB ===="
@@ -81,6 +92,17 @@ for DB in "${DATABASES[@]}"; do
     else
         echo "[✔] Conexão com o servidor local estabelecida."
     fi
+
+    # Restaurar roles e usuários globais localmente
+echo "Restaurando roles e usuários globais no servidor local..."
+export PGPASSWORD=$LOCAL_PASSWORD
+psql -h $LOCAL_HOST -p $LOCAL_PORT -U $LOCAL_USER -d postgres -f "$GLOBAL_DUMP_FILE" 2>&1 &
+show_progress $!
+if [ $? -ne 0 ]; then
+    echo "[x] Erro ao restaurar roles e usuários globais. Verifique o log acima."
+    exit 1
+fi
+echo "[✔] Roles e usuários globais restaurados com sucesso!"
 
     # Restaura o banco local
     # Nessa versão ele presume que o seu postgres é igual ao postgres remoto, porém caso tenha mais de uma versão do postgres instalada você pode passar o caminho absoluto do componente, exemplo: "/usr/pgsql-15/bin/pg_restore"
